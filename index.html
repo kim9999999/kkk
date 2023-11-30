@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+        }
+
+        canvas {
+            border: 2px solid #000;
+            margin-bottom: 20px;
+            background-color: #fff;
+        }
+
+        #score {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            display: none;
+        }
+
+        #restartButton:hover {
+            background-color: #2980b9;
+        }
+
+        #moveButtons {
+            display: flex;
+            justify-content: center;
+            width: 120px;
+            margin: 10px auto;
+        }
+
+        .moveButton {
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            margin: 0 5px;
+        }
+
+        .moveButton:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="tetrisCanvas" width="300" height="600"></canvas>
+    <div id="score">Score: 0</div>
+    <div id="moveButtons">
+        <button class="moveButton" id="moveLeftButton">Left</button>
+        <button class="moveButton" id="moveRightButton">Right</button>
+    </div>
+    <button id="restartButton">Restart Game</button>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const canvas = document.getElementById("tetrisCanvas");
+            const ctx = canvas.getContext("2d");
+            const scoreElement = document.getElementById("score");
+            const restartButton = document.getElementById("restartButton");
+            const moveLeftButton = document.getElementById("moveLeftButton");
+            const moveRightButton = document.getElementById("moveRightButton");
+            const BLOCK_SIZE = 30;
+            const ROWS = canvas.height / BLOCK_SIZE;
+            const COLS = canvas.width / BLOCK_SIZE;
+            const EMPTY = "rgb(255, 255, 255)";
+            const SHAPES = [
+                [[1, 1, 1, 1]],
+                [[1, 1], [1, 1]],
+                [[1, 1, 1], [0, 1, 0]],
+                [[1, 1, 1], [1, 0, 0]],
+                [[1, 1, 1], [0, 0, 1]],
+                [[1, 1, 0], [0, 1, 1]],
+                [[0, 1, 1], [1, 1, 0]]
+            ];
+            const SHAPES_COLORS = ["rgb(255, 0, 0)", "rgb(0, 255, 0)", "rgb(0, 0, 255)", "rgb(255, 255, 0)", "rgb(255, 0, 255)", "rgb(0, 255, 255)", "rgb(128, 128, 128)"];
+
+            let grid = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
+            let currentBlock = generateRandomBlock();
+            let score = 0;
+
+            function generateRandomBlock() {
+                const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+                const color = SHAPES_COLORS[Math.floor(Math.random() * SHAPES_COLORS.length)];
+                return { shape, color, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+            }
+
+            function drawBlock(x, y, color) {
+                ctx.fillStyle = color;
+                ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                ctx.strokeStyle = "rgb(0, 0, 0)";
+                ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            }
+
+            function drawGrid() {
+                grid.forEach((row, rowIndex) => {
+                    row.forEach((color, colIndex) => {
+                        if (color !== EMPTY) {
+                            drawBlock(colIndex, rowIndex, color);
+                        }
+                    });
+                });
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawGrid();
+                currentBlock.shape.forEach((row, rowIndex) => {
+                    row.forEach((cell, colIndex) => {
+                        if (cell) {
+                            drawBlock(currentBlock.x + colIndex, currentBlock.y + rowIndex, currentBlock.color);
+                        }
+                    });
+                });
+            }
+
+            function rotate() {
+                const rotatedBlock = { ...currentBlock, shape: currentBlock.shape[0].map((_, i) => currentBlock.shape.map(row => row[i])).reverse() };
+                if (!isCollision(rotatedBlock)) {
+                    currentBlock = rotatedBlock;
+                }
+            }
+
+            function moveLeft() {
+                const movedBlock = { ...currentBlock, x: currentBlock.x - 1 };
+                if (!isCollision(movedBlock)) {
+                    currentBlock = movedBlock;
+                }
+            }
+
+            function moveRight() {
+                const movedBlock = { ...currentBlock, x: currentBlock.x + 1 };
+                if (!isCollision(movedBlock)) {
+                    currentBlock = movedBlock;
+                }
+            }
+
+            function moveDown() {
+                const movedBlock = { ...currentBlock, y: currentBlock.y + 1 };
+                if (!isCollision(movedBlock)) {
+                    currentBlock = movedBlock;
+                } else {
+                    mergeBlock();
+                    currentBlock = generateRandomBlock();
+                    if (isCollision(currentBlock)) {
+                        // Game over
+                        restartButton.style.display = "block";
+                    }
+                }
+            }
+
+            function isCollision(block) {
+                return block.shape.some((row, rowIndex) => {
+                    return row.some((cell, colIndex) => {
+                        const newX = block.x + colIndex;
+                        const newY = block.y + rowIndex;
+                        return cell && (newX < 0 || newX >= COLS || newY >= ROWS || (newY >= 0 && grid[newY][newX] !== EMPTY));
+                    });
+                });
+            }
+
+            function mergeBlock() {
+                currentBlock.shape.forEach((row, rowIndex) => {
+                    row.forEach((cell, colIndex) => {
+                        if (cell) {
+                            const newX = currentBlock.x + colIndex;
+                            const newY = currentBlock.y + rowIndex;
+                            grid[newY][newX] = currentBlock.color;
+                        }
+                    });
+                });
+                updateScore();
+            }
+
+            function removeFullRows() {
+                let linesRemoved = 0;
+                for (let row = ROWS - 1; row >= 0; row--) {
+                    if (grid[row].every(cell => cell !== EMPTY)) {
+                        grid.splice(row, 1);
+                        grid.unshift(Array(COLS).fill(EMPTY));
+                        linesRemoved++;
+                    }
+                }
+                return linesRemoved;
+            }
+
+            function updateScore() {
+                const linesRemoved = removeFullRows();
+                if (linesRemoved > 0) {
+                    score += linesRemoved * 1000;
+                    scoreElement.innerText = `Score: ${score}`;
+                }
+            }
+
+            function restartGame() {
+                grid = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
+                currentBlock = generateRandomBlock();
+                score = 0;
+                scoreElement.innerText = "Score: 0";
+                restartButton.style.display = "none";
+            }
+
+            function update() {
+                moveDown();
+            }
+
+            function gameLoop() {
+                draw();
+                update();
+            }
+
+            document.addEventListener("keydown", function (event) {
+                switch (event.key) {
+                    case "ArrowUp":
+                        rotate();
+                        break;
+                    case "ArrowLeft":
+                        moveLeft();
+                        break;
+                    case "ArrowRight":
+                        moveRight();
+                        break;
+                    case "ArrowDown":
+                        moveDown();
+                        break;
+                }
+            });
+
+            restartButton.addEventListener("click", restartGame);
+
+            // 게임 속도 조절을 위해 호출 주기를 조절
+            setInterval(gameLoop, 300);
+
+            // 좌우 이동 버튼 이벤트 처리
+            moveLeftButton.addEventListener("click", moveLeft);
+            moveRightButton.addEventListener("click", moveRight);
+        });
+    </script>
+</body>
+</html>
